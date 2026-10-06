@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Marko\CodeIndexer\Cache\IndexCache;
+use Marko\Config\ConfigRepositoryInterface;
 use Marko\Core\Container\ContainerInterface;
 use Marko\Core\Path\ProjectPaths;
 use Marko\Docs\Contract\DocsSearchInterface;
@@ -73,8 +74,11 @@ return [
             ));
 
             try {
+                // Writes stay off unless the operator sets mcp.database.allow_writes (MCP_ALLOW_WRITES);
+                // the agent's allowWrite/confirm arguments alone never enable them.
                 $server->registerTool(QueryDatabaseTool::definition(
                     $c->get(MarkoQueryConnection::class),
+                    writesEnabled: $c->get(ConfigRepositoryInterface::class)->getBool('mcp.database.allow_writes'),
                 ));
             } catch (Throwable) {
                 // marko/database driver not installed — query_database tool unavailable

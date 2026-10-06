@@ -8,10 +8,15 @@
         "marko/core": "self.version",
         "marko/codeindexer": "self.version",
         "marko/docs": "self.version",
-        "marko/cli": "self.version"
+        "marko/cli": "self.version",
+        "marko/config": "self.version"
     },
     "require-dev": {
-        "pestphp/pest": "^4.0"
+        "pestphp/pest": "^4.0",
+        "marko/testing": "self.version",
+        "marko/database": "self.version",
+        "marko/database-mysql": "self.version",
+        "marko/database-pgsql": "self.version"
     },
     "autoload": {
         "psr-4": {

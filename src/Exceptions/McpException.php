@@ -62,6 +62,17 @@ class McpException extends MarkoException
         );
     }
 
+    public static function readOnlyUnsupportedDriver(string $driver): self
+    {
+        return new self(
+            message: "query_database cannot run a read-only query on database driver '$driver'",
+            jsonRpcCode: self::INTERNAL_ERROR,
+            context: 'query_database runs every read inside a read-only transaction so a crafted query cannot write. '
+                . "It only knows how to open one on mysql, pgsql and sqlite connections, so it refuses to run the query on '$driver' at all.",
+            suggestion: 'Use a mysql, pgsql or sqlite connection for the MCP server, or add read-only transaction support for this driver to MarkoQueryConnection.',
+        );
+    }
+
     public static function internalError(string $message): self
     {
         return new self(
