@@ -11,6 +11,10 @@ use Throwable;
 
 readonly class ReadLogEntriesTool implements ToolHandlerInterface
 {
+    public const int DEFAULT_COUNT = 50;
+
+    public const int MAX_COUNT = 500;
+
     public function __construct(private LogReaderInterface $reader) {}
 
     public static function definition(LogReaderInterface $reader): ToolDefinition
@@ -21,7 +25,13 @@ readonly class ReadLogEntriesTool implements ToolHandlerInterface
             inputSchema: [
                 'type' => 'object',
                 'properties' => [
-                    'count' => ['type' => 'integer', 'description' => 'Number of entries to return (default 50)'],
+                    'count' => [
+                        'type' => 'integer',
+                        'minimum' => 1,
+                        'maximum' => self::MAX_COUNT,
+                        'description' => 'Number of entries to return (default ' . self::DEFAULT_COUNT
+                            . ', clamped to 1-' . self::MAX_COUNT . ')',
+                    ],
                 ],
             ],
             handler: new self($reader),
@@ -30,7 +40,8 @@ readonly class ReadLogEntriesTool implements ToolHandlerInterface
 
     public function handle(array $arguments): array
     {
-        $count = isset($arguments['count']) ? (int) $arguments['count'] : 50;
+        $requested = isset($arguments['count']) ? (int) $arguments['count'] : self::DEFAULT_COUNT;
+        $count = max(1, min(self::MAX_COUNT, $requested));
 
         try {
             $entries = $this->reader->readLast($count);

@@ -47,3 +47,41 @@ it(
             ->and($text2)->not->toContain('ERROR: Something failed');
     },
 );
+
+/**
+ * A reader that records every count it is asked for.
+ */
+function makeRecordingLogReader(ArrayObject $counts): LogReaderInterface
+{
+    return new readonly class ($counts) implements LogReaderInterface
+    {
+        public function __construct(private ArrayObject $counts) {}
+
+        public function readLast(int $count): array
+        {
+            $this->counts->append($count);
+
+            return ['line'];
+        }
+    };
+}
+
+it('clamps count to between 1 and 500 before reading', function (): void {
+    $counts = new ArrayObject();
+    $handler = ReadLogEntriesTool::definition(makeRecordingLogReader($counts))->handler;
+
+    $handler->handle(['count' => -10]);
+    $handler->handle(['count' => 0]);
+    $handler->handle(['count' => 1_000_000]);
+    $handler->handle(['count' => 25]);
+    $handler->handle([]);
+
+    expect($counts->getArrayCopy())->toBe([1, 1, 500, 25, 50]);
+});
+
+it('advertises the count bounds in its input schema', function (): void {
+    $schema = ReadLogEntriesTool::definition(makeLogReader([]))->inputSchema;
+
+    expect($schema['properties']['count']['minimum'])->toBe(1)
+        ->and($schema['properties']['count']['maximum'])->toBe(500);
+});

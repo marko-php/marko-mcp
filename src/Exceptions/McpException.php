@@ -73,6 +73,19 @@ class McpException extends MarkoException
         );
     }
 
+    public static function productionServeRefused(string $environment): self
+    {
+        return new self(
+            message: "Refusing to start the MCP server in the '$environment' environment",
+            jsonRpcCode: self::INTERNAL_ERROR,
+            context: 'The MCP server lets an AI agent run console commands, read logs and query the database. '
+                . 'Content the agent reads can steer it, so the server does not start in production by default. '
+                . 'An unset APP_ENV/MARKO_ENV counts as production.',
+            suggestion: 'Set APP_ENV=local (or development) on development machines. To serve a production '
+                . 'environment on purpose, set MCP_ALLOW_PRODUCTION=true (config key mcp.allow_production).',
+        );
+    }
+
     public static function internalError(string $message): self
     {
         return new self(

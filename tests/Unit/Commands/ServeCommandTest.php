@@ -5,8 +5,71 @@ declare(strict_types=1);
 use Marko\Core\Attributes\Command;
 use Marko\Core\Command\Input;
 use Marko\Core\Command\Output;
+use Marko\Core\Environment\AppEnvironment;
 use Marko\Mcp\Commands\ServeCommand;
+use Marko\Mcp\Exceptions\McpException;
 use Marko\Mcp\Server\McpServer;
+use Marko\Testing\Fake\FakeConfigRepository;
+
+function serveConfig(
+    bool $allowProduction = false,
+): FakeConfigRepository {
+    return new FakeConfigRepository(['mcp.allow_production' => $allowProduction]);
+}
+
+/**
+ * A server that records whether serve() was called.
+ */
+function recordingServer(ArrayObject $served): McpServer
+{
+    return new class ($served) extends McpServer
+    {
+        public function __construct(private readonly ArrayObject $served)
+        {
+            // skip parent constructor
+        }
+
+        public function serve(): void
+        {
+            $this->served->append(true);
+        }
+    };
+}
+
+it('refuses to serve in production unless mcp.allow_production is set', function (string $env): void {
+    $served = new ArrayObject();
+    $command = new ServeCommand(recordingServer($served), new AppEnvironment(['APP_ENV' => $env]), serveConfig());
+
+    expect(fn () => $command->execute(new Input([]), new Output(fopen('php://memory', 'w+'))))
+        ->toThrow(McpException::class, "Refusing to start the MCP server in the '$env' environment")
+        ->and($served->count())->toBe(0);
+})->with(['production', 'prod']);
+
+it('treats an unset environment as production and refuses to serve', function (): void {
+    $served = new ArrayObject();
+    $command = new ServeCommand(recordingServer($served), new AppEnvironment([]), serveConfig());
+
+    try {
+        $command->execute(new Input([]), new Output(fopen('php://memory', 'w+')));
+        $this->fail('Expected McpException');
+    } catch (McpException $e) {
+        expect($e->getMessage())->toContain("'production' environment")
+            ->and($e->getSuggestion())->toContain('MCP_ALLOW_PRODUCTION=true')
+            ->and($served->count())->toBe(0);
+    }
+});
+
+it('serves in production when mcp.allow_production is set', function (): void {
+    $served = new ArrayObject();
+    $command = new ServeCommand(
+        recordingServer($served),
+        new AppEnvironment(['APP_ENV' => 'production']),
+        serveConfig(allowProduction: true),
+    );
+
+    expect($command->execute(new Input([]), new Output(fopen('php://memory', 'w+'))))->toBe(0)
+        ->and($served->count())->toBe(1);
+});
 
 it('is registered via Command attribute with name mcp:serve', function (): void {
     $reflection = new ReflectionClass(ServeCommand::class);
@@ -36,7 +99,7 @@ it('boots the MCP server and attaches JsonRpcProtocol to stdio', function (): vo
     $input = new Input([]);
     $output = new Output(fopen('php://memory', 'w+'));
 
-    $command = new ServeCommand($server);
+    $command = new ServeCommand($server, new AppEnvironment(['APP_ENV' => 'local']), serveConfig());
     $command->execute($input, $output);
 
     expect($served)->toBeTrue();
@@ -56,7 +119,7 @@ it('exits 0 on graceful shutdown', function (): void {
     $input = new Input([]);
     $output = new Output(fopen('php://memory', 'w+'));
 
-    $command = new ServeCommand($server);
+    $command = new ServeCommand($server, new AppEnvironment(['APP_ENV' => 'local']), serveConfig());
     $result = $command->execute($input, $output);
 
     expect($result)->toBe(0);
@@ -77,7 +140,7 @@ it('produces no stdout output other than valid JSON-RPC', function (): void {
     $input = new Input([]);
     $output = new Output($mem);
 
-    $command = new ServeCommand($server);
+    $command = new ServeCommand($server, new AppEnvironment(['APP_ENV' => 'local']), serveConfig());
     $command->execute($input, $output);
 
     rewind($mem);
@@ -102,7 +165,7 @@ it('logs startup diagnostics to stderr only', function (): void {
     $input = new Input([]);
     $output = new Output($stdoutMem);
 
-    $command = new ServeCommand($server);
+    $command = new ServeCommand($server, new AppEnvironment(['APP_ENV' => 'local']), serveConfig());
     $command->execute($input, $output);
 
     rewind($stdoutMem);

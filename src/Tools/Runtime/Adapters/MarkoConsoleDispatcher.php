@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Marko\Mcp\Tools\Runtime\Adapters;
 
+use Marko\Core\Command\CommandDefinition;
+use Marko\Core\Command\CommandRegistry;
 use Marko\Core\Command\CommandRunner;
 use Marko\Core\Command\Input;
 use Marko\Core\Command\Output;
@@ -18,7 +20,17 @@ readonly class MarkoConsoleDispatcher
 {
     public function __construct(
         private CommandRunner $runner,
+        private CommandRegistry $registry,
     ) {}
+
+    /**
+     * Look up a command's definition by name or alias, or null when no such command is registered.
+     */
+    public function find(
+        string $command,
+    ): ?CommandDefinition {
+        return $this->registry->get($command);
+    }
 
     /**
      * @param list<string> $args

@@ -9,15 +9,38 @@ use Marko\Mcp\Tools\ToolDefinition;
 use Marko\Mcp\Tools\ToolHandlerInterface;
 use Throwable;
 
+/**
+ * The run_console_command MCP tool.
+ *
+ * The agent can be steered by content it reads, so the server operator decides what it may run. A command runs only
+ * when its name or alias is in the mcp.console.allowed_commands config list. A command whose definition declares a
+ * `force` flag is destructive (db:reset, db:rollback...), and also needs mcp.console.allow_destructive
+ * (MCP_ALLOW_DESTRUCTIVE): the agent can pass --force itself, so the flag alone guards nothing.
+ */
 readonly class RunConsoleCommandTool implements ToolHandlerInterface
 {
-    public function __construct(private MarkoConsoleDispatcher $dispatcher) {}
+    /**
+     * @param list<string> $allowedCommands
+     */
+    public function __construct(
+        private MarkoConsoleDispatcher $dispatcher,
+        private array $allowedCommands = [],
+        private bool $allowDestructive = false,
+    ) {}
 
-    public static function definition(MarkoConsoleDispatcher $dispatcher): ToolDefinition
-    {
+    /**
+     * @param list<string> $allowedCommands
+     */
+    public static function definition(
+        MarkoConsoleDispatcher $dispatcher,
+        array $allowedCommands = [],
+        bool $allowDestructive = false,
+    ): ToolDefinition {
+        $allowed = $allowedCommands !== [] ? implode(', ', $allowedCommands) : '(none)';
+
         return new ToolDefinition(
             name: 'run_console_command',
-            description: 'Run a Marko console command and return its output',
+            description: "Run a Marko console command and return its output. Allowed commands: $allowed",
             inputSchema: [
                 'type' => 'object',
                 'required' => ['command'],
@@ -26,7 +49,7 @@ readonly class RunConsoleCommandTool implements ToolHandlerInterface
                     'args' => ['type' => 'array', 'items' => ['type' => 'string'], 'description' => 'Optional arguments'],
                 ],
             ],
-            handler: new self($dispatcher),
+            handler: new self($dispatcher, $allowedCommands, $allowDestructive),
         );
     }
 
@@ -36,12 +59,15 @@ readonly class RunConsoleCommandTool implements ToolHandlerInterface
         $args = (array) ($arguments['args'] ?? []);
 
         try {
+            $refusal = $this->refusalFor($command);
+
+            if ($refusal !== null) {
+                return $this->error($refusal);
+            }
+
             $result = $this->dispatcher->dispatch($command, $args);
         } catch (Throwable $e) {
-            return [
-                'content' => [['type' => 'text', 'text' => 'ERROR: ' . $e->getMessage()]],
-                'isError' => true,
-            ];
+            return $this->error($e->getMessage());
         }
 
         $text = "exitCode: {$result['exitCode']}\n";
@@ -55,5 +81,42 @@ readonly class RunConsoleCommandTool implements ToolHandlerInterface
         }
 
         return ['content' => [['type' => 'text', 'text' => rtrim($text)]]];
+    }
+
+    /**
+     * Why the command may not run, or null when it may.
+     */
+    private function refusalFor(
+        string $command,
+    ): ?string {
+        $definition = $this->dispatcher->find($command);
+        $names = array_unique([$command, $definition?->name ?? $command]);
+
+        if (array_intersect($names, $this->allowedCommands) === []) {
+            $allowed = $this->allowedCommands !== [] ? implode(', ', $this->allowedCommands) : '(none)';
+
+            return "Command '$command' is not allowed. run_console_command only runs the commands in the "
+                . "mcp.console.allowed_commands config key. Allowed: $allowed";
+        }
+
+        if ($definition !== null && in_array('force', $definition->flags, true) && ! $this->allowDestructive) {
+            return "Command '$command' is destructive (it declares a --force flag) and is disabled. The server "
+                . 'operator must set the mcp.console.allow_destructive config key to true (MCP_ALLOW_DESTRUCTIVE=true) '
+                . 'to run it; passing --force cannot enable it.';
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{content: list<array{type: string, text: string}>, isError: true}
+     */
+    private function error(
+        string $message,
+    ): array {
+        return [
+            'content' => [['type' => 'text', 'text' => 'ERROR: ' . $message]],
+            'isError' => true,
+        ];
     }
 }

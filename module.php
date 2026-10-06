@@ -69,8 +69,17 @@ return [
                 $c->get(LogReaderInterface::class),
             ));
 
+            $config = $c->get(ConfigRepositoryInterface::class);
+
+            // Only commands in mcp.console.allowed_commands run, and commands declaring a `force` flag also need
+            // mcp.console.allow_destructive (MCP_ALLOW_DESTRUCTIVE); the agent's own --force never enables them.
             $server->registerTool(RunConsoleCommandTool::definition(
                 $c->get(MarkoConsoleDispatcher::class),
+                allowedCommands: array_values(array_map(
+                    strval(...),
+                    $config->getArray('mcp.console.allowed_commands'),
+                )),
+                allowDestructive: $config->getBool('mcp.console.allow_destructive'),
             ));
 
             try {
@@ -78,7 +87,7 @@ return [
                 // the agent's allowWrite/confirm arguments alone never enable them.
                 $server->registerTool(QueryDatabaseTool::definition(
                     $c->get(MarkoQueryConnection::class),
-                    writesEnabled: $c->get(ConfigRepositoryInterface::class)->getBool('mcp.database.allow_writes'),
+                    writesEnabled: $config->getBool('mcp.database.allow_writes'),
                 ));
             } catch (Throwable) {
                 // marko/database driver not installed — query_database tool unavailable

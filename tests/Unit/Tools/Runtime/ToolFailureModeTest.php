@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Marko\Core\Command\CommandDefinition;
 use Marko\Mcp\Tools\Runtime\Adapters\MarkoConsoleDispatcher;
 use Marko\Mcp\Tools\Runtime\Adapters\MarkoQueryConnection;
 use Marko\Mcp\Tools\Runtime\Contracts\LogReaderInterface;
@@ -15,6 +16,12 @@ it('handles each tool\'s failure mode with a loud error content block', function
     {
         public function __construct() {}
 
+        public function find(
+            string $command,
+        ): ?CommandDefinition {
+            return null;
+        }
+
         public function dispatch(
             string $command,
             array $args = [],
@@ -23,7 +30,7 @@ it('handles each tool\'s failure mode with a loud error content block', function
         }
     };
 
-    $consoleResult = RunConsoleCommandTool::definition($throwingDispatcher)->handler->handle(
+    $consoleResult = RunConsoleCommandTool::definition($throwingDispatcher, ['nonexistent'])->handler->handle(
         ['command' => 'nonexistent'],
     );
     expect($consoleResult['content'][0]['text'])->toContain('ERROR')

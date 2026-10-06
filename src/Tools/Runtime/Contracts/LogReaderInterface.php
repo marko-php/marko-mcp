@@ -6,6 +6,11 @@ namespace Marko\Mcp\Tools\Runtime\Contracts;
 
 interface LogReaderInterface
 {
-    /** @return list<string> */
+    /**
+     * Return the last $count lines (oldest first) without loading the whole log into memory.
+     * A $count below 1 returns no lines.
+     *
+     * @return list<string>
+     */
     public function readLast(int $count): array;
 }
