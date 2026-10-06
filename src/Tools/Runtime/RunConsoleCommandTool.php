@@ -13,9 +13,10 @@ use Throwable;
  * The run_console_command MCP tool.
  *
  * The agent can be steered by content it reads, so the server operator decides what it may run. A command runs only
- * when its name or alias is in the mcp.console.allowed_commands config list. A command whose definition declares a
- * `force` flag is destructive (db:reset, db:rollback...), and also needs mcp.console.allow_destructive
- * (MCP_ALLOW_DESTRUCTIVE): the agent can pass --force itself, so the flag alone guards nothing.
+ * when its name or alias is in the mcp.console.allowed_commands config list. A command marked
+ * #[Command(destructive: true)] (db:reset, cache:clear, queue:clear...) also needs mcp.console.allow_destructive
+ * (MCP_ALLOW_DESTRUCTIVE). The marker is read from the command's definition, never inferred from its options: the
+ * agent can pass --force itself, so a --force flag alone guards nothing.
  */
 readonly class RunConsoleCommandTool implements ToolHandlerInterface
 {
@@ -99,8 +100,8 @@ readonly class RunConsoleCommandTool implements ToolHandlerInterface
                 . "mcp.console.allowed_commands config key. Allowed: $allowed";
         }
 
-        if ($definition !== null && in_array('force', $definition->flags, true) && ! $this->allowDestructive) {
-            return "Command '$command' is destructive (it declares a --force flag) and is disabled. The server "
+        if ($definition !== null && $definition->destructive && ! $this->allowDestructive) {
+            return "Command '$command' is destructive (#[Command(destructive: true)]) and is disabled. The server "
                 . 'operator must set the mcp.console.allow_destructive config key to true (MCP_ALLOW_DESTRUCTIVE=true) '
                 . 'to run it; passing --force cannot enable it.';
         }

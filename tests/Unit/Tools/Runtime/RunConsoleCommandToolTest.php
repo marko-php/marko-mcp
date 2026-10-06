@@ -108,9 +108,9 @@ it('runs an alias of an allowlisted command', function (): void {
         ->and($dispatcher->dispatched->getArrayCopy())->toBe(['status']);
 });
 
-it('refuses an allowlisted command that declares a force flag even when the agent passes --force', function (): void {
+it('refuses an allowlisted destructive command even when the agent passes --force', function (): void {
     $dispatcher = makeDispatcher(okResult(), [
-        new CommandDefinition('ResetCommand', 'db:reset', flags: ['force']),
+        new CommandDefinition('ResetCommand', 'db:reset', flags: ['force'], destructive: true),
     ]);
 
     $result = RunConsoleCommandTool::definition($dispatcher, allowedCommands: ['db:reset'])
@@ -122,9 +122,48 @@ it('refuses an allowlisted command that declares a force flag even when the agen
         ->and($dispatcher->dispatched->getArrayCopy())->toBe([]);
 });
 
-it('runs an allowlisted force-flag command when allow_destructive is enabled', function (): void {
+it('refuses an allowlisted destructive command that has no force flag', function (): void {
     $dispatcher = makeDispatcher(okResult(), [
-        new CommandDefinition('ResetCommand', 'db:reset', flags: ['force']),
+        new CommandDefinition('CacheClearCommand', 'cache:clear', destructive: true),
+    ]);
+
+    $result = RunConsoleCommandTool::definition($dispatcher, allowedCommands: ['cache:clear'])
+        ->handler->handle(['command' => 'cache:clear']);
+
+    expect($result['isError'] ?? false)->toBeTrue()
+        ->and($result['content'][0]['text'])->toContain("Command 'cache:clear' is destructive")
+        ->and($result['content'][0]['text'])->toContain('mcp.console.allow_destructive')
+        ->and($dispatcher->dispatched->getArrayCopy())->toBe([]);
+});
+
+it('refuses a destructive command reached through an allowlisted alias', function (): void {
+    $dispatcher = makeDispatcher(okResult(), [
+        new CommandDefinition('CacheClearCommand', 'cache:clear', aliases: ['cc'], destructive: true),
+    ]);
+
+    $result = RunConsoleCommandTool::definition($dispatcher, allowedCommands: ['cc'])
+        ->handler->handle(['command' => 'cc']);
+
+    expect($result['isError'] ?? false)->toBeTrue()
+        ->and($result['content'][0]['text'])->toContain('destructive')
+        ->and($dispatcher->dispatched->getArrayCopy())->toBe([]);
+});
+
+it('runs an allowlisted command that declares a force flag but is not marked destructive', function (): void {
+    $dispatcher = makeDispatcher(okResult(), [
+        new CommandDefinition('ScaffoldCommand', 'app:scaffold', flags: ['force']),
+    ]);
+
+    $result = RunConsoleCommandTool::definition($dispatcher, allowedCommands: ['app:scaffold'])
+        ->handler->handle(['command' => 'app:scaffold', 'args' => ['--force']]);
+
+    expect($result['isError'] ?? false)->toBeFalse()
+        ->and($dispatcher->dispatched->getArrayCopy())->toBe(['app:scaffold']);
+});
+
+it('runs an allowlisted destructive command when allow_destructive is enabled', function (): void {
+    $dispatcher = makeDispatcher(okResult(), [
+        new CommandDefinition('ResetCommand', 'db:reset', flags: ['force'], destructive: true),
     ]);
 
     $result = RunConsoleCommandTool::definition(
@@ -139,7 +178,7 @@ it('runs an allowlisted force-flag command when allow_destructive is enabled', f
 
 it('does not run a destructive command just because allow_destructive is enabled', function (): void {
     $dispatcher = makeDispatcher(okResult(), [
-        new CommandDefinition('ResetCommand', 'db:reset', flags: ['force']),
+        new CommandDefinition('ResetCommand', 'db:reset', flags: ['force'], destructive: true),
     ]);
 
     $result = RunConsoleCommandTool::definition(

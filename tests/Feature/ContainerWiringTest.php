@@ -162,7 +162,14 @@ function wiredRunConsoleCommandTool(
 
     $registry = new CommandRegistry();
     $registry->register(new CommandDefinition('Marko\\Mcp\\Tests\\MissingRouteListCommand', 'route:list'));
-    $registry->register(new CommandDefinition('Marko\\Mcp\\Tests\\MissingResetCommand', 'db:reset', flags: ['force']));
+    $registry->register(
+        new CommandDefinition(
+            'Marko\\Mcp\\Tests\\MissingResetCommand',
+            'db:reset',
+            flags: ['force'],
+            destructive: true,
+        ),
+    );
     $container->instance(CommandRegistry::class, $registry);
 
     $tools = new ReflectionClass(McpServer::class)
@@ -181,7 +188,7 @@ it('registers run_console_command with the mcp.console.allowed_commands allowlis
         ->and($result['content'][0]['text'])->toContain("Command 'db:reset' is not allowed");
 });
 
-it('refuses wired force-flag commands unless mcp.console.allow_destructive', function (): void {
+it('refuses wired destructive commands unless mcp.console.allow_destructive', function (): void {
     $refused = wiredRunConsoleCommandTool([
         'mcp.console.allowed_commands' => ['db:reset'],
         'mcp.console.allow_destructive' => false,
