@@ -22,8 +22,8 @@ return [
             'queue:status',
             'queue:failed',
         ],
-        // Lets run_console_command run an allowed command whose definition declares a `force` flag (db:reset,
-        // db:rollback, db:seed...). Off by default: the agent can pass --force itself, so the flag is no guard.
+        // Lets run_console_command run an allowed command marked #[Command(destructive: true)] (db:reset,
+        // cache:clear, queue:clear...). Off by default: the agent can pass --force itself, so that is no guard.
         'allow_destructive' => Env::bool('MCP_ALLOW_DESTRUCTIVE', false),
     ],
     'database' => [
